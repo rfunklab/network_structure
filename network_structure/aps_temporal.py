@@ -21,6 +21,8 @@ def run(years, window, location):
     cursor = db.cursor()
     cursor.execute("USE aps")
 
+    ppy = []
+
     # # -- create a temporary helper table
     # cursor.execute('drop table if exists aps.aps_pacs_helper;')
     # cursor.execute('create table aps.aps_pacs_helper as \
@@ -66,31 +68,37 @@ def run(years, window, location):
         cursor.execute('set @year = {};'.format(year))
         cursor.execute('set @window = {};'.format(window))
 
-        # query edges
-        cursor.execute('select a.disambiguated_id as author_id_a, b.disambiguated_id as author_id_b, count(distinct a.record_id) as papers \
-                        from aps.disambiguated_epj as a, \
-                             aps.disambiguated_epj as b, \
-                             aps.records_raw as c \
-                        where a.record_id = b.record_id \
-                        and a.record_id = c.record_id \
-                        and a.disambiguated_id IS NOT NULL \
-                        and b.disambiguated_id IS NOT NULL \
-                        and a.disambiguated_id < b.disambiguated_id \
-                        and year(c.date) <= @year \
-                        and year(c.date) >= (@year - @window) \
-                        group by a.disambiguated_id, b.disambiguated_id;')
-
+        # count number of papers
+        cursor.execute('select count(distinct record_id) from aps.records_raw where year(date) <= @year and year(date) >= (@year - @window);')
         rows = cursor.fetchall()
-        cols = ['author_id_a', 'author_id_b', 'papers']
-        cdir = os.path.join(location, 'collaboration')
-        out_file = os.path.join(cdir, '{}.csv'.format(year))
-        if not os.path.exists(cdir):
-            os.makedirs(cdir)
-        with open(out_file, 'w') as fp:
-            mf = csv.writer(fp)
-            mf.writerow(cols)
-            for x in rows:
-                mf.writerow([int(x[0]), int(x[1]), int(x[2])])
+        ppy.append({'year':year, 'papers':rows[0][0]})
+
+
+        # # query edges
+        # cursor.execute('select a.disambiguated_id as author_id_a, b.disambiguated_id as author_id_b, count(distinct a.record_id) as papers \
+        #                 from aps.disambiguated_epj as a, \
+        #                      aps.disambiguated_epj as b, \
+        #                      aps.records_raw as c \
+        #                 where a.record_id = b.record_id \
+        #                 and a.record_id = c.record_id \
+        #                 and a.disambiguated_id IS NOT NULL \
+        #                 and b.disambiguated_id IS NOT NULL \
+        #                 and a.disambiguated_id < b.disambiguated_id \
+        #                 and year(c.date) <= @year \
+        #                 and year(c.date) >= (@year - @window) \
+        #                 group by a.disambiguated_id, b.disambiguated_id;')
+        #
+        # rows = cursor.fetchall()
+        # cols = ['author_id_a', 'author_id_b', 'papers']
+        # cdir = os.path.join(location, 'collaboration')
+        # out_file = os.path.join(cdir, '{}.csv'.format(year))
+        # if not os.path.exists(cdir):
+        #     os.makedirs(cdir)
+        # with open(out_file, 'w') as fp:
+        #     mf = csv.writer(fp)
+        #     mf.writerow(cols)
+        #     for x in rows:
+        #         mf.writerow([int(x[0]), int(x[1]), int(x[2])])
 
         # # -- knowledge network ---------------------------------------------------------------------
         #
@@ -111,6 +119,9 @@ def run(years, window, location):
         #     for x in rows:
         #         mf.writerow([str(x[0].decode('utf-8')),str(x[1].decode('utf-8')),int(x[2])])
         #
+
+    ppydf = pd.DataFrame(ppy)
+    ppydf.to_csv(os.path.join(location, 'ppy.csv'), index=False)
 
 
 
